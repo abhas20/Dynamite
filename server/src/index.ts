@@ -8,13 +8,13 @@ dotenv.config();
 
 export const app = express();
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
 app.use(
   cors({
-    origin: "http://your-frontend-domain.com", 
-    methods: ["GET", "POST", "PUT", "DELETE"], // Specify allowed HTTP methods
-    credentials: true, // Allow credentials (cookies, authorization headers, etc.)
+    origin: "http://localhost:3000", 
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true, // credentials (cookies, authorization headers, etc.)
   })
 );
 

@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import {prismaAdapter} from 'better-auth/adapters/prisma'
 import { prisma } from "./prisma.ts";
 import dotenv from 'dotenv'
+import { deviceAuthorization } from "better-auth/plugins"; 
 
 dotenv.config();
 
@@ -10,7 +11,7 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
   trustedOrigins:["http://localhost:3000"],
-  // basePath: "/api/auth",
+  basePath: "/api/auth",
   emailAndPassword: {
     enabled: true,
   },
@@ -19,5 +20,11 @@ export const auth = betterAuth({
       clientId: process.env.GITHUB_CLIENT_ID as string || "",
       clientSecret: process.env.GITHUB_CLIENT_SECRET as string || "",
     }
-  }
+  },
+  plugins:[
+    deviceAuthorization({
+      expiresIn:"30m",
+      interval:"5s",
+    })
+  ]
 });
