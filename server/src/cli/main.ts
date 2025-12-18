@@ -4,6 +4,8 @@ import chalk from 'chalk'
 import { Command } from 'commander'
 import figlet from 'figlet'
 import { login } from './commands/auth/login.ts'
+import { logout } from './commands/auth/logout.ts'
+import { whoami } from './commands/auth/whoami.ts'
 
 async function main() {
     try {
@@ -21,7 +23,9 @@ async function main() {
         const program = new Command("Dynamite");
 
         program.version("1.0.0").description("Dynamite CLI Application")
-        .addCommand(login);
+        .addCommand(login)
+        .addCommand(logout)
+        .addCommand(whoami);
 
         program.action(()=>{
             program.help();
