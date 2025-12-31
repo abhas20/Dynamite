@@ -6,6 +6,7 @@ import figlet from 'figlet'
 import { login } from './commands/auth/login.ts'
 import { logout } from './commands/auth/logout.ts'
 import { whoami } from './commands/auth/whoami.ts'
+import { wakeUp } from './commands/ai/wakeUp.ts'
 
 async function main() {
     try {
@@ -25,7 +26,8 @@ async function main() {
         program.version("1.0.0").description("Dynamite CLI Application")
         .addCommand(login)
         .addCommand(logout)
-        .addCommand(whoami);
+        .addCommand(whoami)
+        .addCommand(wakeUp);
 
         program.action(()=>{
             program.help();

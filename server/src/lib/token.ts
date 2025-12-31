@@ -1,6 +1,7 @@
 import fs from 'fs'
 import { CONFIG_DIR, TOKEN_PATH } from '../cli/commands/auth/login.ts';
 import chalk from 'chalk';
+import { prisma } from './prisma.ts';
 
 export async function getStoredToken(): Promise<Record<string,any> | null> {
     try {
@@ -66,4 +67,25 @@ export async function requireAuth(): Promise<Record<string,any>> {
         process.exit(1);
     }
     return tokenData;
+}
+
+export async function getUserFromToken() {
+    const token = await getStoredToken();
+    if (!token || !token.access_token) {
+        throw new Error("Not authorised for this action. Please log in.");
+    }
+    const user = await prisma.user.findFirst({
+        where: {
+            sessions: {
+                some: {
+                    token: token.access_token
+                },
+            }
+        }
+    })
+
+    if (!user) {
+        throw new Error("User not found for the provided token.");
+    }
+    return user;
 }
