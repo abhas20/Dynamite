@@ -5,6 +5,7 @@ import { prisma } from "../../../lib/prisma.ts";
 import { select } from "@clack/prompts";
 import { Command } from "commander";
 import { startChat } from "../../chat/chat-with-ai.ts";
+import startToolChatwithAI from "../../chat/chat-ai-tools.ts";
 
 
 const wakeUpAction = async ()=> {
@@ -61,10 +62,10 @@ const wakeUpAction = async ()=> {
 
     switch(choice){
         case "chat":
-            startChat({mode:"chat"})
+            await startChat({mode:"chat"})
             break;
         case "tools":
-            console.log("Using ai tools");
+            await startToolChatwithAI({mode:"tool-chat"});
             break;
         case "agent":
             console.log("Using ai agent");
