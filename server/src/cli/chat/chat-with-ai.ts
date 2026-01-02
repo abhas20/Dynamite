@@ -32,7 +32,7 @@ const chatService = new ChatService();
 
 // --- Helpers ---
 
-function displayMessages(messages: { role: string; content: string }[]) {
+export function displayMessages(messages: { role: string; content: string }[]) {
   messages.forEach((msg) => {
     if (msg.role === "user") {
       console.log(
@@ -142,7 +142,7 @@ async function chatLoop(conversation: {
   messages: { role: string; content: string }[];
 }) {
 
-    let currentTitle = conversation.title || "New Chat";
+  let currentTitle = conversation.title || "New Chat";
 
   let shouldAutoUpdateTitle = currentTitle === "New Chat";
 
@@ -295,12 +295,15 @@ export async function startChat({
     });
 
     outro(chalk.greenBright.bold("Thank you for using Dynamite AI Chat!"));
-  } catch (error) {
+    
+  } 
+  catch (error) {
     console.log("\n");
-    boxen(chalk.redBright.bold("Error: " + (error as Error).message), {
+    const errorBox=boxen(chalk.redBright.bold("Error: " + (error as Error).message), {
       padding: 1,
       borderColor: "red",
     });
+    console.log(errorBox);
     process.exit(1);
   }
 }
