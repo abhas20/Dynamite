@@ -2,8 +2,12 @@ import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({path: path.resolve(__dirname, '../../.env')});
 
 const prismaClientSingleton = () => {
   const connectionString = process.env.DATABASE_URL;

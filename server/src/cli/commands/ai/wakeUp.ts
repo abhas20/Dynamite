@@ -6,6 +6,7 @@ import { select } from "@clack/prompts";
 import { Command } from "commander";
 import { startChat } from "../../chat/chat-with-ai.ts";
 import startToolChatwithAI from "../../chat/chat-ai-tools.ts";
+import { startAgentChat } from "../../chat/chat-ai-agents.ts";
 
 
 const wakeUpAction = async ()=> {
@@ -50,7 +51,7 @@ const wakeUpAction = async ()=> {
             {
                 value: "tools",
                 label: "AI Tools",
-                hint: "Use the AI tools(Google Search, Code Execution)"
+                hint: "Use the AI tools(Google Search, Code Execution,and more) service"
             },
             {
                 value: "agent",
@@ -68,7 +69,7 @@ const wakeUpAction = async ()=> {
             await startToolChatwithAI({mode:"tool-chat"});
             break;
         case "agent":
-            console.log("Using ai agent");
+            await startAgentChat({mode:"ai-agent"});
             break;
         default:
             console.log(chalk.red("Invalid choice"));

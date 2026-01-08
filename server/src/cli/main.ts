@@ -19,7 +19,7 @@ async function main() {
                 })
             )
         )
-        console.log(chalk.green("An AI based CLI god\n"))
+        console.log(chalk.green.bold("An AI based CLI god\n"))
 
         const program = new Command("Dynamite");
 
@@ -28,20 +28,31 @@ async function main() {
         .addCommand(logout)
         .addCommand(whoami)
         .addCommand(wakeUp);
+        
+        program
+            .command("hello")
+            .description("Checking the Dynamite application")
+            .action(() => {
+                console.log(chalk.magentaBright("HELLO From DYNAMITE CLI!"));
+            });
 
         program.action(()=>{
             program.help();
         })
 
-        program
-            .command("start")
-            .description("Start the Dynamite application")
-            .action(() => {
-                console.log(chalk.yellow("Starting Dynamite..."));
-                // Add your start logic here
-            });
+        program.on("command:*", (operands) => {
+          const wrongCommand = operands[0];
 
-        program.parse()
+          console.log(
+            chalk.redBright(`\n❌ Error: Unknown command '${wrongCommand}'`)
+          );
+          console.log(chalk.yellow("Did you mean one of these?"));
+          console.log(chalk.gray("-----------------------------------"));
+        });
+        program.showHelpAfterError();
+
+
+        program.parse(process.argv);
 
     } 
     catch (error) {

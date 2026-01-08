@@ -1,7 +1,9 @@
 import chalk from "chalk";
 import { ai_config } from "../../config/ai.config.ts";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { stepCountIs, streamText, type Tool, type ModelMessage } from "ai";
+import { stepCountIs, streamText, type Tool, type ModelMessage, generateText, Output } from "ai";
+import z from "zod";
+import { ZodSchema } from "zod/v3";
 
 
 export class AIService {
@@ -111,5 +113,29 @@ export class AIService {
         },tools);
 
         return result.content;
+    }
+
+    async generateStructuredOutput(prompt:string, schema: ZodSchema<any>) {
+
+        try {
+            
+            const result = await generateText({
+                model: this.model,
+                output: Output.object({
+                    schema: schema,
+                    description: "The structured output as per the defined schema",
+                }),
+                prompt: prompt,
+                maxRetries: 3,
+                temperature: 0.7,
+            });
+
+
+            return result.output;
+
+        } catch (error) {
+            console.error(chalk.red("Error in generateStructuredOutput:"), error);
+            throw error;
+        }
     }
 }
