@@ -34,6 +34,16 @@ export const availableTools = [
     getTools: () => google.tools.googleMaps({}),
     enabled: false,
   },
+  // {
+  //   id: "file_search",
+  //   name: "File Search",
+  //   description: "Search any context from your files",
+  //   geTools: ( files:string[] ) => google.tools.fileSearch({
+  //     fileSearchStoreNames: files,
+  //     topK: 3,
+  //   }),
+  //   enabled: false,
+  // }
 ];
 
 

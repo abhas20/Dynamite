@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { prisma } from "../../../lib/prisma.ts";
 import { requireAuth } from "../../../lib/token.ts";
 import { Command } from "commander";
+import yoctoSpinner from "yocto-spinner";
 
 
 export async function whoamiAction() {
@@ -10,6 +11,7 @@ export async function whoamiAction() {
         console.log("Not authenticated.Please log in again.");
         process.exit(1);
     }
+    const spinner = yoctoSpinner({text:"Fetching user details..."}).start();
 
     const user = await prisma.user.findFirst({
         where:{
@@ -31,7 +33,9 @@ export async function whoamiAction() {
         console.log("User not found. Please log in again.");
         process.exit(1);
     }
+    spinner.text = "Authenticated user details:";
     console.log(chalk.bold.green(`\n User:${user.name}, E-mail:${user.email}`))
+    spinner.stop();
 }
 
 export const whoami = new Command("whoami")

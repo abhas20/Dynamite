@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { getStoredToken } from "../../../lib/token.ts"
+import { requireAuth } from "../../../lib/token.ts"
 import yoctoSpinner from "yocto-spinner";
 import { prisma } from "../../../lib/prisma.ts";
 import { select } from "@clack/prompts";
@@ -10,7 +10,7 @@ import { startAgentChat } from "../../chat/chat-ai-agents.ts";
 
 
 const wakeUpAction = async ()=> {
-    const token = await getStoredToken();
+    const token = await requireAuth();
     if(!token || !token?.access_token){
         console.log(chalk.bgRed("Not authorised. Please login before continuing."));
         return;
