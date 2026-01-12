@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
@@ -12,6 +12,7 @@ import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
+import Loader from "./ui/loader";
 
 
 // Test@1234
@@ -21,31 +22,45 @@ function SignupForm() {
 
     const { data, isPending, error } = authClient.useSession();
 
+    const URL = process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000";
+
+    useEffect(()=>{
+      if (data?.user && data?.session) {
+        router.push("/");
+      }
+    },[data,router]);
+
     if (isPending) {
       return (
-        <div>
-          <Loader2 className="animate-spin" />
-          Loading...
+        <div className="flex flex-col items-center justify-center min-h-screen">
+          <Loader />
+          <p className="mt-4 text-white text-lg">Loading...</p>{" "}
         </div>
       );
     }
+  
 
-    if (data?.user && data?.session) {
-      router.push("/");
-    }
-
+    
     if (error) {
       toast.error("Error fetching session data");
       console.log("Error fetching session data", error);
       return null;
     }
+    
+    if (data?.user && data?.session) {
+      return null;
+    }
 
   const handleGitHubLogin = async () => {
+    if (loading) {
+      return;
+    }
+
     setLoading(true);
     try {
       const { data, error } = await authClient.signIn.social({
         provider: "github",
-        callbackURL: "http://localhost:3000",
+        callbackURL: URL,
       });
 
       if (error) {
@@ -70,7 +85,7 @@ function SignupForm() {
         name:user_name,
         email,
         password,
-        callbackURL: "http://localhost:3000",
+        callbackURL: URL,
       });
 
       if (error) {
@@ -94,6 +109,11 @@ function SignupForm() {
   };
 
   const handleFormSubmit = (formData: FormData) => {
+
+    if(loading){
+        return;
+    }
+
     const user_name = formData.get("user_name") as string;
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;

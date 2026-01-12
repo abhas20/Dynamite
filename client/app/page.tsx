@@ -1,7 +1,7 @@
 "use client";
 import ProfileCard from "@/components/profile-card";
+import Loader from "@/components/ui/loader";
 import { authClient } from "@/lib/auth-client";
-import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -18,14 +18,15 @@ export default function Home() {
     }
   },[isPending,data,router]);
 
-  if(isPending){
+  if (isPending) {
     return (
-      <div>
-        <Loader2 className="animate-spin"/>
-        Loading...
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <Loader />
+        <p className="mt-4 text-white text-lg">Loading...</p>{" "}
       </div>
     );
   }
+  
 
   if(error){
     toast.error("Error fetching session data");

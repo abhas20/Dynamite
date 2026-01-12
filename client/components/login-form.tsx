@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
@@ -10,6 +10,7 @@ import { authClient } from '@/lib/auth-client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import Loader from './ui/loader';
 
 
 function LoginForm() {
@@ -20,18 +21,23 @@ function LoginForm() {
 
   const { data, isPending, error } = authClient.useSession();
 
+  const URL = process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000";
+  
+  useEffect(() => {
+    if (data?.user && data?.session) {
+      router.push("/");
+    }
+  }, [data, router]);
+
   if (isPending) {
     return (
-      <div>
-        <Loader2 className="animate-spin" />
-        Loading...
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <Loader />
+        <p className="mt-4 text-white text-lg">Loading...</p>{" "}
       </div>
     );
   }
 
-  if (data?.user && data?.session) {
-    router.push("/");
-  }
 
   if (error) {
     toast.error("Error fetching session data");
@@ -39,13 +45,21 @@ function LoginForm() {
     return null;
   }
 
+  if (data?.user && data?.session) {
+    return null; 
+  }
+
 
   const handleGitHubLogin=async()=>{
+    if(loading){
+      return;
+    }
+    
     setLoading(true);
     try {
       const {data,error}=await authClient.signIn.social({
         provider: 'github',
-        callbackURL: 'http://localhost:3000'
+        callbackURL: URL
       })
 
       if(error){
@@ -71,8 +85,8 @@ function LoginForm() {
       const {data,error}=await authClient.signIn.email({
         email,
         password,
-        rememberMe, // Will make it dynamic
-        callbackURL: 'http://localhost:3000'
+        rememberMe,
+        callbackURL: URL
       })
 
       if(error){
@@ -93,6 +107,11 @@ function LoginForm() {
   }
 
   const handleFormSubmit=(formData:FormData)=>{
+
+    if(loading){
+      return;
+    }
+
     const email=formData.get("email") as string;
     const password=formData.get("password") as string;
     if(!email || !password){
@@ -146,7 +165,7 @@ function LoginForm() {
           </>
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
-          <Button type="submit" variant="default" className="mt-5 w-full gap-4">
+          <Button type="submit" variant="default" className="mt-5 w-full gap-4" disabled={loading}>
             {loading ? <Loader2 className="animate-spin" /> : "Sign Up"}
           </Button>
           <p className="gap-4 text-center text-xs">
@@ -172,7 +191,7 @@ function LoginForm() {
         </div>
       </div>
 
-      <form action={handleGitHubLogin} className="px-6 pb-4">
+      <form action={handleGitHubLogin} className="px-6 pb-4" >
         <Button
           type="submit"
           variant="outline"

@@ -1,5 +1,7 @@
 "use client";
-import Image from "next/image";
+
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 interface ProfileCardProps {
     user:{
@@ -13,6 +15,17 @@ interface ProfileCardProps {
 }   
 
 export default function ProfileCard({ user, handleSignOut,isLoading }: ProfileCardProps) {
+
+  const router = useRouter();
+
+   useEffect(() => {
+     if (!user) {
+       router.push("/auth/sign-in");
+     }
+   }, [user, router]);
+
+   if (!user) return null;
+
   return (
     <div className="w-80 bg-yellow-400 rounded-xl shadow-lg p-6 text-center">
       <img
@@ -36,6 +49,7 @@ export default function ProfileCard({ user, handleSignOut,isLoading }: ProfileCa
 
       <button
         onClick={handleSignOut}
+        disabled={isLoading}
         className="w-full mt-5 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg transition">
         {isLoading ? "Signing Out..." : "Sign Out"}
       </button>
