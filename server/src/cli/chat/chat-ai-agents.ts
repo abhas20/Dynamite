@@ -1,6 +1,5 @@
 import chalk from "chalk";
 import { ChatService } from "../../service/chat.service.ts";
-import { AIService } from "../ai/service.ts";
 import boxen from "boxen";
 import { displayMessages } from "./chat-with-ai.ts";
 import { confirm, intro, isCancel, outro, text } from "@clack/prompts";

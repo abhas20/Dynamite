@@ -2,7 +2,6 @@ import chalk from "chalk";
 import { ai_config } from "../../config/ai.config.ts";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { stepCountIs, streamText, type Tool, type ModelMessage, generateText, Output } from "ai";
-import z from "zod";
 import { ZodSchema } from "zod/v3";
 
 

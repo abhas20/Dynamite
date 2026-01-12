@@ -6,11 +6,13 @@ import { deviceAuthorization } from "better-auth/plugins";
 
 dotenv.config();
 
+const URL = process.env.FRONTEND_URL || "http://localhost:3000";
+
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
-  trustedOrigins:["http://localhost:3000"],
+  trustedOrigins:[URL],
   basePath: "/api/auth",
   emailAndPassword: {
     enabled: true,
