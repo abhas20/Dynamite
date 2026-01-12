@@ -38,6 +38,25 @@
     pnpm install
     ```
 
+5. Set up environment variables:
+    - Client-side:
+    Run the following command to create a `.env` file in the `client` directory:
+    ```bash
+    cp .env.example .env
+    ```
+    - Server-side:
+    Run the following command to create a `.env` file in the `server` directory:
+    ```bash
+    cp .env.example .env
+    ```
+    Update the `.env` files with your configuration settings as needed.
+
+6. Set-up Prisma database:
+    ```bash
+    npx prisma migrate dev --name init
+    npx prisma generate
+    ```
+
 ## Usage
 
 1. Run the application:

@@ -1,0 +1,16 @@
+{
+    "name": "dynamite-cli-blast",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+
+    "scripts": {
+        "dev": "pnpm --parallel --filter ./client dev & pnpm --parallel --filter ./server dev",
+        "build": "pnpm --parallel --filter ./client build && pnpm --parallel --filter ./server build",
+        "start": "pnpm --parallel --filter ./server start",
+        "lint": "pnpm --parallel --filter ./client lint && pnpm --parallel --filter ./server lint"
+    },
+    "dependencies": {},
+
+    "devDependencies": {}
+}
