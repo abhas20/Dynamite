@@ -1,12 +1,16 @@
 {
   "compilerOptions": {
-    "module": "ESNext",
-    "moduleResolution": "node",
-    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
     "strict": true,
     "esModuleInterop": true,
-    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
-    "noEmit": true
-  }
+    
+    /*tsup handle the build,tsc handle the types */
+    "noEmit": true, 
+    "allowImportingTsExtensions": true, 
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*"]
 }

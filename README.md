@@ -27,25 +27,18 @@
     cd Dynamite
     ```
 4. Install dependencies:
-    - Client-side dependencies:
     ```bash
-    cd client (from root) or cd ../client (from server)
-    pnpm install
-    ```
-    - Server-side dependencies:
-    ```bash
-    cd server (from root) or cd ../server (from client) 
     pnpm install
     ```
 
 5. Set up environment variables:
     - Client-side:
-    Run the following command to create a `.env` file in the `client` directory:
+    Run the following command to create a `.env` file inside the `client` directory:
     ```bash
     cp .env.example .env
     ```
     - Server-side:
-    Run the following command to create a `.env` file in the `server` directory:
+    Run the following command to create a `.env` file inside the `server` directory:
     ```bash
     cp .env.example .env
     ```
@@ -53,7 +46,6 @@
 
 6. Set-up Prisma database:
     ```bash
-    npx prisma migrate dev --name init
     npx prisma generate
     ```
 
