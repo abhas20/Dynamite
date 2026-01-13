@@ -1,7 +1,7 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "",
+  "description": "Backend for Dynamite AI CLI tool",
   "main": "index.js",
   "type": "module",
   "bin": {

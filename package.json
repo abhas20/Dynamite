@@ -5,11 +5,13 @@
     "type": "module",
 
     "scripts": {
-        "dev": "pnpm --parallel --filter ./client dev & pnpm --parallel --filter ./server dev",
-        "build": "pnpm --parallel --filter ./client build && pnpm --parallel --filter ./server build",
-        "start": "pnpm --parallel --filter ./server start",
-        "lint": "pnpm --parallel --filter ./client lint && pnpm --parallel --filter ./server lint"
+        "install": "pnpm install",
+        "dev": "pnpm -w -r --parallel --filter \"./client...\" --filter \"./server...\" run dev",
+        "build": "pnpm -w -r --parallel --filter \"./client...\" --filter \"./server...\" run build",
+        "start": "pnpm -w -r --filter \"./server...\" run start",
+        "lint": "pnpm -w -r --parallel --filter \"./client...\" --filter \"./server...\" run lint"
     },
+
     "dependencies": {},
 
     "devDependencies": {}

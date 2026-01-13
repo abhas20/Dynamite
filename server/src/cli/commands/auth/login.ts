@@ -6,7 +6,7 @@ import { cancel, confirm, intro, isCancel, outro } from '@clack/prompts';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import {createAuthClient} from 'better-auth/client'
-import { deviceAuthorizationClient } from 'better-auth/plugins';
+import { deviceAuthorizationClient } from 'better-auth/client/plugins';
 import yoctoSpinner from 'yocto-spinner'
 import { logger } from 'better-auth';
 import open from 'open'
