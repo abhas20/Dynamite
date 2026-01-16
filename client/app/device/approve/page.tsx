@@ -133,16 +133,16 @@ const ApprovePage = () => {
 
           <div className="flex justify-between gap-4">
             <Button
-              variant="default"
-              onClick={handleApprove}
-              disabled={isProcessing.approve || isProcessing.deny}>
-              {isProcessing.approve ? "Approving..." : "Approve"}
-            </Button>
-            <Button
               variant="destructive"
               onClick={handleDeny}
               disabled={isProcessing.approve || isProcessing.deny}>
               {isProcessing.deny ? "Denying..." : "Deny"}
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleApprove}
+              disabled={isProcessing.approve || isProcessing.deny}>
+              {isProcessing.approve ? "Approving..." : "Approve"}
             </Button>
           </div>
 
