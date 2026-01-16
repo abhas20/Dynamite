@@ -30,7 +30,9 @@ export async function whoamiAction() {
     })
 
     if(!user){
-        console.log("User not found. Please log in again.");
+        spinner.text = "User not found.";
+        spinner.stop();
+        console.log("\n Please log in again.");
         process.exit(1);
     }
     spinner.text = "Authenticated user details:";

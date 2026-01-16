@@ -2,7 +2,7 @@ import chalk from "chalk";
 import { marked } from "marked";
 import { ChatService } from "../../service/chat.service.ts";
 import { AIService } from "../ai/service.ts";
-import { cancel, intro, isCancel, multiselect, outro, text } from "@clack/prompts";
+import { cancel, intro, isCancel, multiselect, outro, select, text } from "@clack/prompts";
 import boxen from "boxen";
 import { getUserFromToken } from "../../lib/token.ts";
 import yoctoSpinner from "yocto-spinner";
@@ -273,6 +273,13 @@ async function chatLoop(conversation: {
         "Type " + chalk.yellowBright.bold("/tools") + " to view enabled tools."
       )}\n` +
       `${chalk.greenBright.bold(
+        "Type " + chalk.yellowBright.bold("/history") + " to view chat history."
+      )}\n` +
+      `${chalk.greenBright.bold(
+        "Type " + chalk.yellowBright.bold("/clear") + " to clear chat history."
+      )}\n` +
+
+      `${chalk.greenBright.bold(
         "Type " + chalk.yellowBright.bold("/change-tools") + " to enable/disable tools."
       )}`,
     {
@@ -347,6 +354,125 @@ async function chatLoop(conversation: {
       }
       else {
         console.log(chalk.greenBright.bold(`Enabled tools: ${enabledToolNames.join(', ')}`));
+      }
+      continue;
+    }
+
+    if (inputStr.toLowerCase() === "/history") {
+      const historySpinner = yoctoSpinner({
+        text: "Fetching chat history...",
+      }).start();
+      try {
+        if (!conversation.userId) {
+          throw new Error("User ID is missing from the current session.");
+        }
+        const conversations = await chatService.getConversationsByUser(
+          conversation.userId
+        );
+        historySpinner.stop();
+
+        if (!conversations || conversations.length === 0) {
+          console.log(chalk.yellow("No previous chat history found."));
+          continue;
+        }
+
+        const options = conversations.map((c: any) => ({
+          value: String(c.id),
+          label:
+            c.id === conversation.id
+              ? `${c.title || "Untitled"} (Current)`
+              : c.title || "Untitled",
+          hint: c.id === conversation.id ? "You are here" : undefined,
+        }));
+
+        const selectedId = await select({
+          message: "Select a conversation to continue:",
+          options: [
+            { value: "cancel", label: chalk.red("Cancel") },
+            ...options,
+          ],
+        });
+
+        if (isCancel(selectedId) || selectedId === "cancel") {
+          console.log(chalk.gray("Action cancelled."));
+          continue;
+        }
+
+        if (selectedId === conversation.id) {
+          console.log(chalk.green("You are already in this chat."));
+          continue;
+        }
+
+        const switchSpinner = yoctoSpinner({
+          text: "Switching conversation...",
+        }).start();
+        console.log("Debug Switching:", {
+          userId: conversation.userId,
+          selectedId,
+        });
+
+        const newConversation = await chatService.getorCreateConversations(
+          conversation.userId,
+          selectedId.toString()
+        );
+
+        if (!newConversation) {
+          switchSpinner.error("Failed to switch conversation.");
+          continue;
+        }
+
+        conversation.id = newConversation.id;
+        conversation.title = newConversation.title || "Prev Chat";
+        conversation.messages = newConversation.messages || [];
+        currentTitle = newConversation.title || "New Chat";
+        shouldAutoUpdateTitle = currentTitle === "New Chat";
+
+        switchSpinner.success(`Switched to: ${chalk.bold(currentTitle)}`);
+
+        console.log(chalk.yellowBright.bold("\n--- History Loaded ---"));
+        if (conversation.messages.length > 0) {
+          displayMessages(conversation.messages);
+        } else {
+          console.log(chalk.gray("No messages in this conversation yet."));
+        }
+        console.log(chalk.yellowBright.bold("----------------------\n"));
+      } 
+      catch (err) {
+        historySpinner.stop();
+        console.log(
+          chalk.red(`Error fetching history: ${(err as Error).message}`)
+        );
+      }
+      continue;
+    }
+
+    if (inputStr.toLowerCase() === "/clear") {
+      const confirmClear = await select({
+        message: "Are you sure you want to clear the chat history?",
+        options: [
+          { value: "yes", label: chalk.red("Yes, clear it") },
+          { value: "no", label: chalk.green("No, keep it") },
+        ],
+      });
+
+      if (isCancel(confirmClear) || confirmClear === "no") {
+        console.log(chalk.gray("Chat history not cleared."));
+        continue;
+      }
+
+      const clearSpinner = yoctoSpinner({
+        text: "Clearing chat history...",
+      }).start();
+      try {
+        await chatService.deleteConversation(
+          conversation.id,
+          conversation.userId
+        );
+        conversation.messages = [];
+        clearSpinner.success("Chat history cleared.");
+      } catch (err) {
+        clearSpinner.error("Failed to clear chat history.");
+        console.log(chalk.red(`Error: ${(err as Error).message}`));
       }
       continue;
     }

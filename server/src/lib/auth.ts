@@ -28,5 +28,12 @@ export const auth = betterAuth({
       expiresIn:"30m",
       interval:"5s",
     })
-  ]
+  ],
+  advanced: {
+    defaultCookieAttributes:{
+      sameSite: "none",
+      secure: true,
+      httpOnly: true,
+    }
+  }
 });
