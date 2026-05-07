@@ -22,6 +22,7 @@ function LoginForm() {
   const { data, isPending, error } = authClient.useSession();
 
   const URL = process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000";
+  // console.log(data)
   
   useEffect(() => {
     if (data?.user && data?.session) {
@@ -46,7 +47,12 @@ function LoginForm() {
   }
 
   if (data?.user && data?.session) {
-    return null; 
+    return (
+      <div className="flex items-center justify-center h-screen gap-2">
+        <Loader2 className="animate-spin" />
+        <p>Redirecting to dashboard...</p>
+      </div>
+    );
   }
 
 

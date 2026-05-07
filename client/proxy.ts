@@ -10,11 +10,11 @@ export const config = {
 
 export async function proxy(request: NextRequest) {
 
-  const sessionCookie = getSessionCookie(request);
+  // const sessionCookie = getSessionCookie(request);
 
-  if(!sessionCookie){
-    return NextResponse.redirect(new URL('/auth/sign-in', request.url));
-  }
+  // if(!sessionCookie){
+  //   return NextResponse.redirect(new URL('/auth/sign-in', request.url));
+  // }
 
   return NextResponse.next();
 

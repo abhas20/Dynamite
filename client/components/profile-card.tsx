@@ -47,6 +47,11 @@ export default function ProfileCard({ user, handleSignOut,isLoading }: ProfileCa
         <strong>Email:</strong> {user?.email || "N/A"}
       </p>
 
+      <button className="w-full mt-5 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg transition"
+      onClick={()=>router.push("/device")}>
+        Verify Device
+      </button>
+
       <button
         onClick={handleSignOut}
         disabled={isLoading}
