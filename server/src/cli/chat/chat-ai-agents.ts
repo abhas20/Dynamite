@@ -1,29 +1,24 @@
 import chalk from "chalk";
-import { ChatService } from "../../service/chat.service.ts";
 import boxen from "boxen";
 import { displayMessages } from "./chat-with-ai.ts";
 import { confirm, intro, isCancel, outro, text } from "@clack/prompts";
-import { getUserFromToken } from "../../lib/token.ts";
+import { makeAPIRequest } from "../api-client.ts";
 import yoctoSpinner from "yocto-spinner";
-import { generateApplicationStructurePrompt, modifyApplicationStructurePrompt, routeUserIntent } from "../../config/agent.config.ts";
+import { createApplicationFiles, modifyApplicationFiles, displayFileTree } from "../../config/agent.config.ts";
 import path from "path";
 import { existsSync } from "fs";
-import { prisma } from "../../lib/prisma.ts";
-
-
-
-const chatService = new ChatService();
 
 async function initConversation(
   conversationId: string | undefined,
-  mode: string = "Agent Mode",
-  userId: string
+  mode: string = "Agent Mode"
 ) {
-  const conversation = await chatService.getorCreateConversations(
-    userId,
-    conversationId,
-    mode
-  );
+  const res = await makeAPIRequest("/api/chat/init", {
+    method: "POST",
+    body: JSON.stringify({ conversationId, mode }),
+  });
+  const body = await res.json();
+  const conversation = body.conversation;
+
   if (!conversation) {
     throw new Error("Failed to initialize conversation");
   }
@@ -63,13 +58,12 @@ async function initConversation(
   return conversation;
 }
 
-
 async function agentLoop(conversation: {
   id: string;
   userId: string;
   mode: string;
   title: string;
-}, initialPath?:string) {
+}, initialPath?: string) {
   let continueChat = true;
   let currWorkingDir = initialPath || process.cwd();
 
@@ -132,71 +126,120 @@ async function agentLoop(conversation: {
         console.log(chalk.green(`✓ Directory changed to: ${chalk.bold(currWorkingDir)}`));
       } else {
         console.log(chalk.red(`⚠ Directory not found: ${resolvedPath}`));
-        // ADD FEATURE: Ask if they want to create it? 
       }
       continue;
     }
 
     try {
-      await chatService.addMessage(conversation.id, "user", userInput.toString());
+      // Save user message
+      const historyRes = await makeAPIRequest("/api/chat/init", {
+        method: "POST",
+        body: JSON.stringify({ conversationId: conversation.id }),
+      });
+      const historyBody = await historyRes.json();
+      const dbMessages = historyBody.conversation.messages || [];
+      const history = dbMessages.map((m: any) => ({ role: m.role, content: m.content }));
 
-      const data = await prisma.conversations.findUnique({
-        where: { id: conversation.id },
-        include: { messages: true },
-      })
+      await makeAPIRequest(`/api/chat/message`, {
+        method: "POST",
+        body: JSON.stringify({
+          conversationId: conversation.id,
+          content: inputStr,
+          enabledTools: [],
+        }),
+      });
 
-      const history = [];
-      if(data){
-        for(const msg of data.messages){
-          history.push({role: msg.role, content: msg.content});
-        }
-      }
-
-      const routingSpinner = yoctoSpinner({text:"Processing your instruction with AI Agent...",color:"cyan"}).start();
-      const routing = await routeUserIntent({userInput:userInput.toString(),history:history});
+      const routingSpinner = yoctoSpinner({ text: "Processing your instruction with AI Agent...", color: "cyan" }).start();
+      const routeRes = await makeAPIRequest("/api/agent/route", {
+        method: "POST",
+        body: JSON.stringify({ userInput: inputStr, history }),
+      });
+      const routing = await routeRes.json();
       routingSpinner.stop();
 
       let resultMessage = "";
-      if(routing.intent === "create"){
-        const result = await generateApplicationStructurePrompt({description:userInput.toString(), location: currWorkingDir});
-  
-        if(result && result.application){
-          const responseMessage = `Application "${result.application.folderName}" has been generated successfully with the following structure:\n\n` +
-          `No. of Files: ${result.application.files.length}\n` +
-          `SetUp Commands: ${result.application.setupCommands?.length != null ? result.application.setupCommands.join(", ") : "No setup required"}\n` +
-          `Application Directory: ${result.appDir}\n\n` +
-          `Application Structure:\n` +
-          `${result.tree}\n\n` +
-          `You can now navigate to the application directory and start working on your project.`;
-          resultMessage = responseMessage;
-        }
-        else{
+      if (routing.intent === "create") {
+        const generateSpinner = yoctoSpinner({ text: "Generating application files...", color: "cyan" }).start();
+        const genRes = await makeAPIRequest("/api/agent/generate", {
+          method: "POST",
+          body: JSON.stringify({ description: inputStr }),
+        });
+        const genBody = await genRes.json();
+        generateSpinner.stop();
+
+        const application = genBody.application;
+        if (application && application.files?.length > 0) {
+          const appDir = await createApplicationFiles(currWorkingDir, application.files, application.folderName);
+          const tree = displayFileTree(application.folderName, application.files);
+          
+          resultMessage = `Application "${application.folderName}" has been generated successfully with the following structure:\n\n` +
+            `No. of Files: ${application.files.length}\n` +
+            `SetUp Commands: ${application.setupCommands?.length ? application.setupCommands.join(", ") : "No setup required"}\n` +
+            `Application Directory: ${appDir}\n\n` +
+            `Application Structure:\n` +
+            `${tree}\n\n` +
+            `You can now navigate to the application directory and start working on your project.`;
+
+          // Interactive Setup Commands execution
+          if (application.setupCommands?.length) {
+            const shouldRun = await confirm({
+              message: `Do you want to run setup commands? (${application.setupCommands.join(" && ")})`,
+              initialValue: true,
+            });
+
+            if (shouldRun && !isCancel(shouldRun)) {
+              console.log(chalk.yellow("\nRunning setup commands..."));
+              // ! Need to ensure that running these commands is safe, consider adding more checks or confirmations here 
+              const { execSync } = await import("child_process");
+              try {
+                execSync(application.setupCommands.join(" && "), { cwd: appDir, stdio: 'inherit' });
+                console.log(chalk.green("\n✓ Setup commands executed successfully."));
+              } catch (err) {
+                console.log(chalk.red(`\n❌ Setup commands failed: ${(err as Error).message}`));
+              }
+            }
+          }
+        } else {
           resultMessage = "Failed to generate application structure. Please try again.";
         }
-      }
+      } 
+      
+      else if (routing.intent === "modify") {
+        const modifySpinner = yoctoSpinner({ text: "Generating code modifications...", color: "cyan" }).start();
+        const modRes = await makeAPIRequest("/api/agent/modify", {
+          method: "POST",
+          body: JSON.stringify({ description: inputStr, location: currWorkingDir, history }),
+        });
+        const modBody = await modRes.json();
+        modifySpinner.stop();
 
-      else if(routing.intent === "modify"){
-        const result = await modifyApplicationStructurePrompt({description:userInput.toString(), location: currWorkingDir,history:history});
-
-        if(result && result.modifications){
-          const responseMessage = `The following modifications have been made to your application:\n\n` +
-          `Reason: ${result.modifications.explanation}\n` +
-          `Folder Modified: ${result.modifications.targetFolder}\n` +
-          `No. of Files Modified: ${result.modifications.files.length}\n` 
-
-          resultMessage = responseMessage;
-        }
-        else{
+        const modifications = modBody.modifications;
+        if (modifications && modifications.files?.length > 0) {
+          const targetDir = await modifyApplicationFiles(currWorkingDir, modifications);
+          resultMessage = `The following modifications have been made to your application:\n\n` +
+            `Reason: ${modifications.explanation}\n` +
+            `Folder Modified: ${modifications.targetFolder}\n` +
+            `No. of Files Modified: ${modifications.files.length}\n`;
+        } else {
           resultMessage = "Failed to modify application structure. Please try again.";
         }
-      }
-      else{
+      } 
+      
+      else {
         resultMessage = "I am currently specialized in Creating or Modifying file structures. Please provide a task related to that.";
       }
 
-      if(resultMessage){
+      if (resultMessage) {
+        // Save assistant response to DB
+        await makeAPIRequest("/api/chat/message", {
+          method: "POST",
+          body: JSON.stringify({
+            conversationId: conversation.id,
+            content: resultMessage,
+            enabledTools: [],
+          }),
+        });
 
-        await chatService.addMessage(conversation.id, "assistant", resultMessage);
         console.log(chalk.greenBright.bold("\nAI Agent Response:"));
         console.log(chalk.whiteBright.bold(resultMessage));
         
@@ -212,26 +255,15 @@ async function agentLoop(conversation: {
           continueChat = false;
         }
       }
-      else{
-        const errorMsg = "Failed to generate application structure. Please try again.";
-        await chatService.addMessage(conversation.id, "assistant", errorMsg);
-        console.log(chalk.redBright.bold("\nAI Agent Response:"));
-        console.log(chalk.whiteBright.bold(errorMsg));
-      }
-
-    }
-      
-    catch (error) {
-      
+    } catch (error) {
       console.log('\n');
-      const errorBox=boxen(chalk.redBright.bold("Error: " + (error as Error).message), {
+      const errorBox = boxen(chalk.redBright.bold("Error: " + (error as Error).message), {
         padding: 1,
         borderColor: "red",
       });
       console.log(errorBox);
-
     }
-}
+  }
 }
 
 export async function startAgentChat({
@@ -241,19 +273,20 @@ export async function startAgentChat({
   mode?: string;
   conversationId?: string;
 }) {
+  intro(
+    boxen(chalk.greenBright.bold("Welcome to Dynamite AI Agent Mode!"), {
+      padding: 1,
+      margin: 1,
+      borderStyle: "round",
+      borderColor: "magenta",
+    })
+  );
 
-   intro(
-     boxen(chalk.greenBright.bold("Welcome to Dynamite AI Agent Mode!"), {
-       padding: 1,
-       margin: 1,
-       borderStyle: "round",
-       borderColor: "magenta",
-     })
-   );
-
-   try {
-    const spinner = yoctoSpinner({text:"Authenticating user...",color:"cyan"}).start();
-    const user = await getUserFromToken();
+  try {
+    const spinner = yoctoSpinner({ text: "Authenticating user...", color: "cyan" }).start();
+    const userRes = await makeAPIRequest("/api/user/me");
+    const userBody = await userRes.json();
+    const user = userBody.user;
     
     if (!user) {
       spinner.error("Authentication failed. Please login again.");
@@ -283,7 +316,7 @@ export async function startAgentChat({
         `You are about to start an AI Agent chat in the directory: ${finalPath}. Do you want to continue?`,
       ),
       initialValue: true,
-    })
+    });
 
     if (!shouldContinue || isCancel(shouldContinue)) {
       console.log("Exiting Agent Mode");
@@ -295,27 +328,23 @@ export async function startAgentChat({
       text: "Initializing agent conversation...",
       color: "magenta",
     }).start();
-    const conversation = await initConversation(conversationId, mode, user.id);
+    const conversation = await initConversation(conversationId, mode);
     initSpinner.stop();
 
     await agentLoop({
       ...conversation,
       userId: user.id,
       title: conversation.title || "New Agent Chat",
-    },finalPath);
+    }, finalPath);
 
     outro(chalk.greenBright.bold("Thank you for using Dynamite AI Agent Mode!"));
-    
-   } 
-   catch (error) {
+  } catch (error) {
     console.log('\n');
-    const errorBox=boxen(chalk.redBright.bold("Error: " + (error as Error).message), {
+    const errorBox = boxen(chalk.redBright.bold("Error: " + (error as Error).message), {
       padding: 1,
       borderColor: "red",
     });
     console.log(errorBox);
     process.exit(1);
-
-   }
-  
+  }
 }

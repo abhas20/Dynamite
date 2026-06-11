@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { requireAuth } from "../../../lib/token.ts"
 import yoctoSpinner from "yocto-spinner";
-import { prisma } from "../../../lib/prisma.ts";
+import { makeAPIRequest } from "../../api-client.ts";
 import { select } from "@clack/prompts";
 import { Command } from "commander";
 import { startChat } from "../../chat/chat-with-ai.ts";
@@ -18,20 +18,16 @@ const wakeUpAction = async ()=> {
 
     const spinner = yoctoSpinner({text:"Fetching up user details..."}).start();
 
-    const user = await prisma.user.findFirst({
-        where:{
-            sessions:{
-                some: {
-                    token: token.access_token
-                }
-            }
-        },
-        select:{
-            id:true,
-            email:true,
-            name:true
-        }
-    })
+    let user;
+    try {
+        const res = await makeAPIRequest("/api/user/me");
+        const body = await res.json();
+        user = body.user;
+    } catch (err) {
+        spinner.stop();
+        console.log(chalk.bgRed("Invalid session or server unreachable. Please login again."));
+        return;
+    }
 
     spinner.stop();
     if(!user){

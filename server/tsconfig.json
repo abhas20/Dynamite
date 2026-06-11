@@ -7,7 +7,6 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     
-    /*tsup handle the build,tsc handle the types */
     "noEmit": true, 
     "allowImportingTsExtensions": true, 
     "resolveJsonModule": true

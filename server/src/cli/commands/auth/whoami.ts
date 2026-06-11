@@ -1,43 +1,29 @@
 import chalk from "chalk";
-import { prisma } from "../../../lib/prisma.ts";
-import { requireAuth } from "../../../lib/token.ts";
+import { makeAPIRequest } from "../../api-client.ts";
 import { Command } from "commander";
 import yoctoSpinner from "yocto-spinner";
 
 
 export async function whoamiAction() {
-    const token = await requireAuth();
-    if(!token || !token.access_token){
-        console.log("Not authenticated.Please log in again.");
-        process.exit(1);
-    }
     const spinner = yoctoSpinner({text:"Fetching user details..."}).start();
 
-    const user = await prisma.user.findFirst({
-        where:{
-            sessions:{
-                some:{
-                    token:token.access_token
-                }
-            }
-        },
-        select:{
-            id:true,
-            email:true,
-            name:true,
-            image:true
-        }
-    })
+    try {
+        const res = await makeAPIRequest("/api/user/me");
+        const body = await res.json();
+        const user = body.user;
 
-    if(!user){
-        spinner.text = "User not found.";
+        if(!user){
+            spinner.stop();
+            console.log("\nPlease log in again.");
+            process.exit(1);
+        }
         spinner.stop();
-        console.log("\n Please log in again.");
+        console.log(chalk.bold.green(`\nUser: ${user.name}, E-mail: ${user.email}`));
+    } catch (err) {
+        spinner.stop();
+        console.log(chalk.red(`\nFailed to fetch user details: ${(err as Error).message}`));
         process.exit(1);
     }
-    spinner.text = "Authenticated user details:";
-    console.log(chalk.bold.green(`\n User:${user.name}, E-mail:${user.email}`))
-    spinner.stop();
 }
 
 export const whoami = new Command("whoami")

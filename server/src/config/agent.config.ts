@@ -68,7 +68,7 @@ const ModificationSchema = z.object({
 //     return tree;
 // }
 
-function displayFileTree(
+export function displayFileTree(
   folderName: string,
   files: Array<{ path: string; content: string }>
 ): string {
@@ -108,7 +108,7 @@ const aiService = new AIService();
 
 // FILE OPERATIONS
 
-async function createApplicationFiles(baseDir: string, files: Array<{ path: string, content: string }>, folderName: string) {
+export async function createApplicationFiles(baseDir: string, files: Array<{ path: string, content: string }>, folderName: string) {
 
     if (!folderName || folderName === "/" || folderName === ".") {
       throw new Error("Invalid folder name");
@@ -144,9 +144,9 @@ async function createApplicationFiles(baseDir: string, files: Array<{ path: stri
 }
 
 
-async function modifyApplicationFiles(
+export async function modifyApplicationFiles(
   baseDir: string,
-  modifications: z.infer<typeof ModificationSchema>
+  modifications: any
 ) {
   const targetPath = path.resolve(baseDir, modifications.targetFolder);
 
@@ -243,13 +243,13 @@ export async function generateApplicationStructurePrompt({description,location=p
     Here are the IMPORTANT requirements:
     1. The application should be created in a folder named appropriately to the application purpose.
     2. Create all necessary files and folders required for the application to run.
-    3. Each file should have complete content with proper code, comments, and structure.
+    3. Each file should have complete content with proper code, comments, and structure and also ensure proper spacing and line breaks.
     4. Include a brief description of the application.
     5. List any setup commands required to install dependencies or prepare the environment if required.
     6. Provide the commands or steps to run the application.
     7. List all dependencies required by the application in key-value pairs if required.
     8. Include README.md and config files (like .gitignore,.env) as necessary.
-    9. Ensure the application is production ready with proper structure and best practices.`
+    9. Ensure the application is production ready with proper structure and best practices.`;
 
     try {
 

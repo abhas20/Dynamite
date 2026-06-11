@@ -1,10 +1,8 @@
 import chalk from "chalk";
 import { marked } from "marked";
-import { AIService } from "../ai/service.ts";
-import { ChatService } from "../../service/chat.service.ts";
 import { intro, isCancel, outro, select, text } from "@clack/prompts";
 import boxen from "boxen";
-import { getUserFromToken } from "../../lib/token.ts";
+import { makeAPIRequest } from "../api-client.ts";
 import yoctoSpinner from "yocto-spinner";
 import TerminalRenderer from "marked-terminal";
 
@@ -26,9 +24,6 @@ marked.setOptions({
     firstHeading: chalk.greenBright.bold.underline,
   }),
 });
-
-const aiService = new AIService();
-const chatService = new ChatService();
 
 // --- Helpers ---
 
@@ -63,14 +58,15 @@ export function displayMessages(messages: { role: string; content: string }[]) {
 
 async function initConversation(
   conversationId: string | undefined,
-  mode: string = "chat",
-  userId: string
+  mode: string = "chat"
 ) {
-  const conversation = await chatService.getorCreateConversations(
-    userId,
-    conversationId,
-    mode
-  );
+  const res = await makeAPIRequest("/api/chat/init", {
+    method: "POST",
+    body: JSON.stringify({ conversationId, mode }),
+  });
+  const body = await res.json();
+  const conversation = body.conversation;
+
   if (!conversation) {
     throw new Error("Failed to initialize conversation");
   }
@@ -107,43 +103,13 @@ async function initConversation(
   return conversation;
 }
 
-
-async function getAIResponse(conversationId: string) {
-  const spinner = yoctoSpinner({ text: "AI is thinking..." }).start();
-
-  try {
-    const dbMessages = await chatService.getMessages(conversationId);
-
-    const aiMessages = chatService.formatMessagesForModel(dbMessages);
-
-    let fullRes = "";
-    let isFirstChunk = true;
-
-    const result = await aiService.sendMessage(aiMessages, (chunk: string) => {
-      if (isFirstChunk) {
-        spinner.text = "AI is typing...";
-        isFirstChunk = false;
-      }
-      fullRes += chunk;
-    });
-
-    spinner.success("Response received");
-    return result.content;
-  } catch (error) {
-    spinner.error("Failed to get AI response.");
-    throw error;
-  }
-}
-
 async function chatLoop(conversation: {
   id: string;
   userId: string;
   title: string;
   messages: { role: string; content: string }[];
 }) {
-
   let currentTitle = conversation.title || "New Chat";
-
   let shouldAutoUpdateTitle = currentTitle === "New Chat";
 
   const helpBox = boxen(
@@ -208,11 +174,10 @@ async function chatLoop(conversation: {
     if (inputStr.toLowerCase().startsWith("/title")) {
       const newTitle = inputStr.replace("/title", "").trim();
       if (newTitle.length > 0) {
-        await chatService.updateConversationTitle(
-          conversation.id,
-          newTitle,
-          conversation.userId
-        );
+        await makeAPIRequest(`/api/chat/${conversation.id}/title`, {
+          method: "PUT",
+          body: JSON.stringify({ title: newTitle }),
+        });
         currentTitle = newTitle;
         conversation.title = newTitle;
         shouldAutoUpdateTitle = false;
@@ -228,12 +193,9 @@ async function chatLoop(conversation: {
     if (inputStr.toLowerCase() === "/history") {
       const historySpinner = yoctoSpinner({ text: "Fetching chat history..." }).start();
       try {
-        if (!conversation.userId) {
-          throw new Error("User ID is missing from the current session.");
-        }
-        const conversations = await chatService.getConversationsByUser(
-          conversation.userId
-        );
+        const historyRes = await makeAPIRequest("/api/chat/conversations");
+        const historyBody = await historyRes.json();
+        const conversations = historyBody.conversations;
         historySpinner.stop();
 
         if (!conversations || conversations.length === 0) {
@@ -263,7 +225,9 @@ async function chatLoop(conversation: {
           continue;
         }
 
-        if (selectedId === conversation.id) {
+        const selectedStr = selectedId as string;
+
+        if (selectedStr === conversation.id) {
           console.log(chalk.green("You are already in this chat."));
           continue;
         }
@@ -271,12 +235,13 @@ async function chatLoop(conversation: {
         const switchSpinner = yoctoSpinner({
           text: "Switching conversation...",
         }).start();
-        console.log("Debug Switching:", { userId: conversation.userId, selectedId });
 
-        const newConversation = await chatService.getorCreateConversations(
-          conversation.userId,
-          selectedId.toString()
-        );
+        const switchRes = await makeAPIRequest("/api/chat/init", {
+          method: "POST",
+          body: JSON.stringify({ conversationId: selectedStr }),
+        });
+        const switchBody = await switchRes.json();
+        const newConversation = switchBody.conversation;
 
         if (!newConversation) {
           switchSpinner.error("Failed to switch conversation.");
@@ -298,15 +263,13 @@ async function chatLoop(conversation: {
           console.log(chalk.gray("No messages in this conversation yet."));
         }
         console.log(chalk.yellowBright.bold("----------------------\n"));
-      }
-      catch (err)
-      {
+      } catch (err) {
         historySpinner.stop();
         console.log(chalk.red(`Error fetching history: ${(err as Error).message}`));
       }
       continue;
     }
-    
+
     if (inputStr.toLowerCase() === "/clear") {
       const confirmClear = await select({
         message: "Are you sure you want to clear the chat history?",
@@ -323,7 +286,9 @@ async function chatLoop(conversation: {
 
       const clearSpinner = yoctoSpinner({ text: "Clearing chat history..." }).start();
       try {
-        await chatService.deleteConversation(conversation.id,conversation.userId);
+        await makeAPIRequest(`/api/chat/${conversation.id}`, {
+          method: "DELETE",
+        });
         conversation.messages = [];
         clearSpinner.success("Chat history cleared.");
       } catch (err) {
@@ -335,36 +300,76 @@ async function chatLoop(conversation: {
 
     // --- CHAT FLOW ---
 
+    const spinner = yoctoSpinner({ text: "AI is thinking..." }).start();
     try {
-      await chatService.addMessage(conversation.id, "user", inputStr);
+      const response = await makeAPIRequest("/api/chat/message", {
+        method: "POST",
+        body: JSON.stringify({
+          conversationId: conversation.id,
+          content: inputStr,
+          useTools: false,
+        }),
+      });
 
-      const aiResponse = await getAIResponse(conversation.id);
-      await chatService.addMessage(conversation.id, "assistant", aiResponse);
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Failed to read stream from server");
+      }
 
-      console.log(
-        boxen(chalk.greenBright.bold("AI:") + "\n" + marked.parse(aiResponse), {
-          padding: 1,
-          margin: 1,
-          borderStyle: "round",
-          borderColor: "green",
-          title: chalk.greenBright.bold("AI 🤖"),
-        })
-      );
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let isFirstChunk = true;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const parsed = JSON.parse(line);
+            if (parsed.type === "text") {
+              if (isFirstChunk) {
+                spinner.stop();
+                process.stdout.write(chalk.greenBright.bold("AI 🤖: "));
+                isFirstChunk = false;
+              }
+              process.stdout.write(parsed.content);
+            }
+          } catch (err) {}
+        }
+      }
+      if (buffer.trim()) {
+        try {
+          const parsed = JSON.parse(buffer);
+          if (parsed.type === "text") {
+            if (isFirstChunk) {
+              spinner.stop();
+              process.stdout.write(chalk.greenBright.bold("AI 🤖: "));
+              isFirstChunk = false;
+            }
+            process.stdout.write(parsed.content);
+          }
+        } catch (err) {}
+      }
+      console.log("\n");
 
       if (shouldAutoUpdateTitle) {
         const titleSnippet =
           inputStr.slice(0, 50) + (inputStr.length > 50 ? "..." : "");
-        await chatService.updateConversationTitle(
-          conversation.id,
-          titleSnippet,
-          conversation.userId
-        );
-
+        await makeAPIRequest(`/api/chat/${conversation.id}/title`, {
+          method: "PUT",
+          body: JSON.stringify({ title: titleSnippet }),
+        });
         currentTitle = titleSnippet;
         shouldAutoUpdateTitle = false;
-        // console.log("Debug: Title auto-updated");
       }
     } catch (error) {
+      spinner.stop();
       console.log(chalk.red(`Something went wrong: ${error}`));
     }
   }
@@ -388,7 +393,9 @@ export async function startChat({
 
   try {
     const spinner = yoctoSpinner({ text: "Authenticating..." }).start();
-    const user = await getUserFromToken();
+    const userRes = await makeAPIRequest("/api/user/me");
+    const userBody = await userRes.json();
+    const user = userBody.user;
 
     if (!user) {
       spinner.error("Authentication failed. Please login again.");
@@ -400,7 +407,7 @@ export async function startChat({
     const initSpinner = yoctoSpinner({
       text: "Initializing conversation...",
     }).start();
-    const conversation = await initConversation(conversationId, mode, user.id);
+    const conversation = await initConversation(conversationId, mode);
     initSpinner.stop();
 
     await chatLoop({
@@ -410,11 +417,9 @@ export async function startChat({
     });
 
     outro(chalk.greenBright.bold("Thank you for using Dynamite AI Chat!"));
-    
-  } 
-  catch (error) {
+  } catch (error) {
     console.log("\n");
-    const errorBox=boxen(chalk.redBright.bold("Error: " + (error as Error).message), {
+    const errorBox = boxen(chalk.redBright.bold("Error: " + (error as Error).message), {
       padding: 1,
       borderColor: "red",
     });

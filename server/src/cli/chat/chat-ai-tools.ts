@@ -1,15 +1,12 @@
 import chalk from "chalk";
 import { marked } from "marked";
-import { ChatService } from "../../service/chat.service.ts";
-import { AIService } from "../ai/service.ts";
 import { cancel, intro, isCancel, multiselect, outro, select, text } from "@clack/prompts";
 import boxen from "boxen";
-import { getUserFromToken } from "../../lib/token.ts";
+import { makeAPIRequest } from "../api-client.ts";
 import yoctoSpinner from "yocto-spinner";
-import { availableTools, enableTool, getEnabledToolNames, getEnabledTools, resetTools } from "../../config/tool.config.ts";
+import { availableTools, enableTool, getEnabledToolNames, resetTools } from "../../config/tool.config.ts";
 import { displayMessages } from "./chat-with-ai.ts";
 import TerminalRenderer from "marked-terminal";
-
 
 marked.setOptions({
   // @ts-ignore
@@ -30,26 +27,21 @@ marked.setOptions({
   }),
 });
 
-const aiService = new AIService();
-const chatService = new ChatService();
-
-
 // -- Helpers --
 
 async function selectToolsForChat() {
-
   const tools = availableTools.map((tool) => ({
     label: `${tool.name} - ${tool.description}`,
     value: tool.name,
   }));
 
   const selectedTools = await multiselect({
-    message: "Select the tools you want to enable for this chat(SPACE to select, ENTER to confirm):\n",
+    message: "Select the tools you want to enable for this chat (SPACE to select, ENTER to confirm):\n",
     options: tools,
     required: false,
-  })
+  });
 
-  if(isCancel(selectedTools)){
+  if (isCancel(selectedTools)) {
     cancel("Chat setup cancelled.");
     process.exit(0);
   }
@@ -59,14 +51,13 @@ async function selectToolsForChat() {
     return tool ? tool.id : '';
   }).filter(id => id !== ''));
 
-  if(selectedTools.length === 0) {
+  if (selectedTools.length === 0) {
     console.log(chalk.yellow("\nNo tools selected. Proceeding without tools."));
   } else {
     console.log(chalk.greenBright(`\nEnabled tools: ${selectedTools.join(', ')}`));
   }
 
-  return selectedTools.length>0;
-
+  return selectedTools.length > 0;
 }
 
 async function editToolsDuringChat() {
@@ -111,29 +102,29 @@ async function editToolsDuringChat() {
 
 async function initConversation(
   conversationId: string | undefined,
-  mode: string = "tool-chat",
-  userId: string
+  mode: string = "tool-chat"
 ) {
+  const spinner = yoctoSpinner({ text: "Initializing conversation..." }).start();
 
-  const spineer = yoctoSpinner({ text: "Initializing conversation..." }).start();
+  try {
+    const res = await makeAPIRequest("/api/chat/init", {
+      method: "POST",
+      body: JSON.stringify({ conversationId, mode }),
+    });
+    const body = await res.json();
+    const conversation = body.conversation;
 
-  const conversation = await chatService.getorCreateConversations(
-    userId,
-    conversationId,
-    mode
-  );
-  if (!conversation) {
-    spineer.error("Failed to initialize conversation");
-    throw new Error("Failed to initialize conversation");
-  }
+    if (!conversation) {
+      spinner.error("Failed to initialize conversation");
+      throw new Error("Failed to initialize conversation");
+    }
 
-  const enabledToolNames = getEnabledToolNames();
+    const enabledToolNames = getEnabledToolNames();
+    spinner.success("Conversation initialized");
 
-  spineer.success("Conversation initialized");
-
-  const toolInfo = enabledToolNames.length > 0 ?
-    `The following tools are enabled for this chat: ${enabledToolNames.join(", ")}.` :
-    "No tools are enabled for this chat.";
+    const toolInfo = enabledToolNames.length > 0 ?
+      `The following tools are enabled for this chat: ${enabledToolNames.join(", ")}.` :
+      "No tools are enabled for this chat.";
 
     const conversationInfo = boxen(
       `${chalk.greenBright.bold("Conversation ID:")} ${chalk.white.bold(
@@ -168,82 +159,11 @@ async function initConversation(
     }
 
     return conversation;
-  
+  } catch (error) {
+    spinner.error("Initialization failed");
+    throw error;
+  }
 }
-
-async function getAIResponse(conversationId: string) {
-
-  const spinner = yoctoSpinner({ text: "AI is thinking..." }).start();
-  try {
-      const dbMessages = await chatService.getMessages(conversationId);
-      const aiMessages = chatService.formatMessagesForModel(dbMessages);
-      const tools = getEnabledTools();
-  
-      let fullRes = "";
-      let isFirstChunk = true;
-      const toolCallDetected:{ name: string; args: any }[] = [];
-  
-      const result = await aiService.sendMessage(
-        aiMessages,
-        (chunk: string) => {
-          if (isFirstChunk) {
-            spinner.text = "AI is typing...";
-            isFirstChunk = false;
-          }
-          fullRes += chunk;
-        },
-        tools,
-        (toolName: string, toolArgs: any) => {
-          toolCallDetected.push({ name: toolName, args: toolArgs });
-        }
-      );
-
-    if (toolCallDetected.length > 0) {
-      console.log('\n');
-      
-      const toolOutput = toolCallDetected.map(tc => {
-        let details = "";
-        if (tc.args.code) {
-          details = chalk.white("\nCode to execute:\n") + chalk.yellow(tc.args.code);
-        } 
-        else {
-          details = chalk.gray(JSON.stringify(tc.args, null, 2));
-        }
-
-        return `${chalk.yellowBright.bold("⚡ Tool Call:")} ${chalk.white.bold(tc.name)}\n${details}`;
-      }).join('\n\n');
-
-      console.log(boxen(toolOutput, {
-        padding: 1,
-        borderColor: "yellow",
-        margin: 1,
-        title: chalk.yellowBright.bold("Tool Execution Request"),
-      }));
-    }
-
-    if (result.toolResults && result.toolResults.length > 0) {
-      console.log('\n');
-      console.log(boxen(
-        result.toolResults.map(tr => 
-          `${chalk.cyanBright.bold("Result (" + tr.toolName + "):")}\n${chalk.white(JSON.stringify(tr.toolResult, null, 2))}`
-        ).join('\n---\n'),
-        {
-          padding: 1,
-          borderColor: "cyan",
-          margin: 1,
-          title: chalk.cyanBright.bold("Tool Results"),
-        }
-      ));
-    }
-  
-      spinner.success("Response received");
-      return result.content;
-    } catch (error) {
-      spinner.error("Failed to get AI response.");
-      throw error;
-    }
-}
-
 
 async function chatLoop(conversation: {
   id: string;
@@ -251,9 +171,7 @@ async function chatLoop(conversation: {
   title: string;
   messages: { role: string; content: string }[];
 }) {
-
   let currentTitle = conversation.title || "New Chat";
-
   let shouldAutoUpdateTitle = currentTitle === "New Chat";
 
   const helpBox = boxen(
@@ -278,7 +196,6 @@ async function chatLoop(conversation: {
       `${chalk.greenBright.bold(
         "Type " + chalk.yellowBright.bold("/clear") + " to clear chat history."
       )}\n` +
-
       `${chalk.greenBright.bold(
         "Type " + chalk.yellowBright.bold("/change-tools") + " to enable/disable tools."
       )}`,
@@ -301,7 +218,7 @@ async function chatLoop(conversation: {
       validate(value: string) {
         if (value.trim().length === 0) return "Please enter a message.";
       },
-    }); 
+    });
 
     if (isCancel(userInput)) {
       console.log(chalk.greenBright.bold("Exiting chat. Goodbye 👋!"));
@@ -321,15 +238,13 @@ async function chatLoop(conversation: {
       const newTitle = inputStr.substring(7).trim();
       if (newTitle.length === 0) {
         console.log(chalk.redBright.bold("⚠ Please provide a title. Usage: /title My Cool Chat"));
-      } 
-      else {
+      } else {
+        await makeAPIRequest(`/api/chat/${conversation.id}/title`, {
+          method: "PUT",
+          body: JSON.stringify({ title: newTitle }),
+        });
         currentTitle = newTitle;
         shouldAutoUpdateTitle = false;
-        await chatService.updateConversationTitle(
-          conversation.id,
-          currentTitle,
-          conversation.userId
-        );
         console.log(
           chalk.greenBright.bold(`Conversation renamed to "${currentTitle}".`)
         );
@@ -351,8 +266,7 @@ async function chatLoop(conversation: {
       const enabledToolNames = getEnabledToolNames();
       if (enabledToolNames.length === 0) {
         console.log(chalk.yellowBright.bold("No tools are enabled for this chat."));
-      }
-      else {
+      } else {
         console.log(chalk.greenBright.bold(`Enabled tools: ${enabledToolNames.join(', ')}`));
       }
       continue;
@@ -363,12 +277,9 @@ async function chatLoop(conversation: {
         text: "Fetching chat history...",
       }).start();
       try {
-        if (!conversation.userId) {
-          throw new Error("User ID is missing from the current session.");
-        }
-        const conversations = await chatService.getConversationsByUser(
-          conversation.userId
-        );
+        const historyRes = await makeAPIRequest("/api/chat/conversations");
+        const historyBody = await historyRes.json();
+        const conversations = historyBody.conversations;
         historySpinner.stop();
 
         if (!conversations || conversations.length === 0) {
@@ -398,7 +309,9 @@ async function chatLoop(conversation: {
           continue;
         }
 
-        if (selectedId === conversation.id) {
+        const selectedStr = selectedId as string;
+
+        if (selectedStr === conversation.id) {
           console.log(chalk.green("You are already in this chat."));
           continue;
         }
@@ -406,15 +319,13 @@ async function chatLoop(conversation: {
         const switchSpinner = yoctoSpinner({
           text: "Switching conversation...",
         }).start();
-        console.log("Debug Switching:", {
-          userId: conversation.userId,
-          selectedId,
-        });
 
-        const newConversation = await chatService.getorCreateConversations(
-          conversation.userId,
-          selectedId.toString()
-        );
+        const switchRes = await makeAPIRequest("/api/chat/init", {
+          method: "POST",
+          body: JSON.stringify({ conversationId: selectedStr }),
+        });
+        const switchBody = await switchRes.json();
+        const newConversation = switchBody.conversation;
 
         if (!newConversation) {
           switchSpinner.error("Failed to switch conversation.");
@@ -436,8 +347,7 @@ async function chatLoop(conversation: {
           console.log(chalk.gray("No messages in this conversation yet."));
         }
         console.log(chalk.yellowBright.bold("----------------------\n"));
-      } 
-      catch (err) {
+      } catch (err) {
         historySpinner.stop();
         console.log(
           chalk.red(`Error fetching history: ${(err as Error).message}`)
@@ -464,10 +374,9 @@ async function chatLoop(conversation: {
         text: "Clearing chat history...",
       }).start();
       try {
-        await chatService.deleteConversation(
-          conversation.id,
-          conversation.userId
-        );
+        await makeAPIRequest(`/api/chat/${conversation.id}`, {
+          method: "DELETE",
+        });
         conversation.messages = [];
         clearSpinner.success("Chat history cleared.");
       } catch (err) {
@@ -477,104 +386,172 @@ async function chatLoop(conversation: {
       continue;
     }
 
-
     // --- CHAT FLOW ---
 
+    const spinner = yoctoSpinner({ text: "AI is thinking..." }).start();
     try {
-      await chatService.addMessage(conversation.id, "user", inputStr);
+      const enabledTools = availableTools.filter(t => t.enabled).map(t => t.id);
 
-      const aiResponse = await getAIResponse(conversation.id);
-      await chatService.addMessage(conversation.id, "assistant", aiResponse);
+      const response = await makeAPIRequest("/api/chat/message", {
+        method: "POST",
+        body: JSON.stringify({
+          conversationId: conversation.id,
+          content: inputStr,
+          enabledTools: enabledTools,
+        }),
+      });
 
-      console.log(
-        boxen(chalk.greenBright.bold("AI:") + "\n" + marked.parse(aiResponse), {
-          padding: 1,
-          margin: 1,
-          borderStyle: "round",
-          borderColor: "green",
-          title: chalk.greenBright.bold("AI 🤖"),
-        })
-      );
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Failed to read stream from server");
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let isFirstChunk = true;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const parsed = JSON.parse(line);
+
+            if (parsed.type === "text") {
+              if (isFirstChunk) {
+                spinner.stop();
+                process.stdout.write(chalk.greenBright.bold("AI 🤖: "));
+                isFirstChunk = false;
+              }
+              process.stdout.write(parsed.content);
+            } 
+            
+            else if (parsed.type === "tool-call") {
+              spinner.stop();
+              console.log("\n");
+
+              let details = "";
+              if (parsed.args?.code) {
+                details = chalk.white("\nCode to execute:\n") + chalk.yellow(parsed.args.code);
+              } else {
+                details = chalk.gray(JSON.stringify(parsed.args, null, 2));
+              }
+
+              console.log(boxen(`${chalk.yellowBright.bold("⚡ Tool Call:")} ${chalk.white.bold(parsed.name)}\n${details}`, {
+                padding: 1,
+                borderColor: "yellow",
+                margin: 1,
+                title: chalk.yellowBright.bold("Tool Execution Request"),
+              }));
+            } 
+            
+            else if (parsed.type === "tool-result") {
+              console.log("\n");
+              console.log(boxen(
+                `${chalk.cyanBright.bold("Result (" + parsed.name + "):")}\n${chalk.white(JSON.stringify(parsed.result, null, 2))}`,
+                {
+                  padding: 1,
+                  borderColor: "cyan",
+                  margin: 1,
+                  title: chalk.cyanBright.bold("Tool Results"),
+                }
+              ));
+            }
+          } catch (err) {}
+        }
+      }
+      if (buffer.trim()) {
+        try {
+          const parsed = JSON.parse(buffer);
+          if (parsed.type === "text") {
+            if (isFirstChunk) {
+              spinner.stop();
+              process.stdout.write(chalk.greenBright.bold("AI 🤖: "));
+              isFirstChunk = false;
+            }
+            process.stdout.write(parsed.content);
+          }
+        } catch (err) {}
+      }
+      console.log("\n");
 
       if (shouldAutoUpdateTitle) {
         const titleSnippet =
           inputStr.slice(0, 50) + (inputStr.length > 50 ? "..." : "");
-        await chatService.updateConversationTitle(
-          conversation.id,
-          titleSnippet,
-          conversation.userId
-        );
-
+        await makeAPIRequest(`/api/chat/${conversation.id}/title`, {
+          method: "PUT",
+          body: JSON.stringify({ title: titleSnippet }),
+        });
         currentTitle = titleSnippet;
         shouldAutoUpdateTitle = false;
       }
-    }
-     catch (error) {
+    } catch (error) {
+      spinner.stop();
       console.log(chalk.red(`Something went wrong: ${error}`));
     }
   }
-}; 
-
+}
 
 export default async function startToolChatwithAI(
-  {conversationId, mode = "tool-chat"}: 
-  {conversationId?:string; mode?:string;} 
+  { conversationId, mode = "tool-chat" }:
+  { conversationId?: string; mode?: string; }
 ) {
-    intro(
-        boxen(
-            chalk.greenBright.bold("Welcome to Dynamite AI Chat with Tools! 🚀"),
-            {
-                padding: 1,
-                margin: 1,
-                borderStyle: "round",
-                borderColor: "green",
-                title: chalk.greenBright.bold("Dynamite AI 🤖"),
-            }
-        )
+  intro(
+    boxen(
+      chalk.greenBright.bold("Welcome to Dynamite AI Chat with Tools! 🚀"),
+      {
+        padding: 1,
+        margin: 1,
+        borderStyle: "round",
+        borderColor: "green",
+        title: chalk.greenBright.bold("Dynamite AI 🤖"),
+      }
     )
+  );
 
-    try {
-        const spinner = yoctoSpinner({ text: "Authenticating..." }).start();
-        const user = await getUserFromToken();
-    
-        if (!user) {
-          spinner.error("Authentication failed. Please login again.");
-          process.exit(1);
-        }
-    
-        spinner.success("Authenticated as " + user.name);
+  try {
+    const spinner = yoctoSpinner({ text: "Authenticating..." }).start();
+    const userRes = await makeAPIRequest("/api/user/me");
+    const userBody = await userRes.json();
+    const user = userBody.user;
 
-        await selectToolsForChat();
-        const initSpinner = yoctoSpinner({
-          text: "Initializing conversation...",
-        }).start();
-        const conversation = await initConversation(
-          conversationId,
-          mode,
-          user.id
-        );
-        initSpinner.stop();
-
-        await chatLoop({
-          ...conversation,
-          userId: user.id,
-          title: conversation.title || "New Chat",
-        });
-
-        resetTools();
-
-        outro(chalk.greenBright.bold("Thank you for using Dynamite AI Chat!"));
-        
-    } 
-    catch (error) {
-        console.log("\n");
-        const errorBox=boxen(chalk.redBright.bold("Error: " + (error as Error).message), {
-          padding: 1,
-          borderColor: "red",
-        });
-
-        console.log(errorBox);
-        resetTools();
-        process.exit(1);
+    if (!user) {
+      spinner.error("Authentication failed. Please login again.");
+      process.exit(1);
     }
+
+    spinner.success("Authenticated as " + user.name);
+
+    await selectToolsForChat();
+    const initSpinner = yoctoSpinner({
+      text: "Initializing conversation...",
+    }).start();
+    const conversation = await initConversation(conversationId, mode);
+    initSpinner.stop();
+
+    await chatLoop({
+      ...conversation,
+      userId: user.id,
+      title: conversation.title || "New Chat",
+    });
+
+    resetTools();
+    outro(chalk.greenBright.bold("Thank you for using Dynamite AI Chat!"));
+  } catch (error) {
+    console.log("\n");
+    const errorBox = boxen(chalk.redBright.bold("Error: " + (error as Error).message), {
+      padding: 1,
+      borderColor: "red",
+    });
+
+    console.log(errorBox);
+    resetTools();
+    process.exit(1);
+  }
 }
