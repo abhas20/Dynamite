@@ -47,19 +47,21 @@ export const availableTools = [
 ];
 
 
-export function getEnabledTools() {
+export function getEnabledTools(requestedToolIds?: string[]) {
     const tools: Record<string, Tool> = {};
 
     try {
+      if (!requestedToolIds || requestedToolIds.length === 0) {
+        return tools;
+      }
 
       for(const toolConfig of availableTools) {
-        if(toolConfig.enabled) {
-
+        if(requestedToolIds.includes(toolConfig.id)) {
           tools[toolConfig.id] = toolConfig.getTools();
         }
       }
       if(Object.keys(tools).length > 0) {
-        console.log(`Enabled tools: ${Object.keys(tools).join(',')}`)
+        console.log(`Enabled tools for request: ${Object.keys(tools).join(',')}`)
       }
 
       return tools;

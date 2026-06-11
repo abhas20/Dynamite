@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors"
 import { toNodeHandler } from 'better-auth/node'
 import { auth } from "./lib/auth.ts";
+import { apiRouter } from "./routes/api.ts";
 
 dotenv.config();
 
@@ -21,6 +22,8 @@ app.use(
 
 app.all("/api/auth/*splat", toNodeHandler(auth)); 
 app.use(express.json());
+
+app.use("/api", apiRouter);
 
 app.get("/",(req,res)=>{
     res.send("Dynamite Server is Running");
