@@ -7,6 +7,8 @@ import { login } from './commands/auth/login.ts'
 import { logout } from './commands/auth/logout.ts'
 import { whoami } from './commands/auth/whoami.ts'
 import { wakeUp } from './commands/ai/wakeUp.ts'
+import { config } from './commands/utility/config.ts'
+import { historyCmd } from './commands/ai/history.ts'
 
 async function main() {
     try {
@@ -19,15 +21,17 @@ async function main() {
                 })
             )
         )
-        console.log(chalk.green.bold("An AI based CLI god\n"))
+        console.log(chalk.green.bold("Your AI based CLI Companion\n"))
 
         const program = new Command("Dynamite");
 
-        program.version("1.0.0").description("Dynamite CLI Application")
+        program.version("1.0.1").description("Dynamite CLI Application")
         .addCommand(login)
         .addCommand(logout)
         .addCommand(whoami)
-        .addCommand(wakeUp);
+        .addCommand(wakeUp)
+        .addCommand(config)
+        .addCommand(historyCmd);
         
         program
             .command("hello")

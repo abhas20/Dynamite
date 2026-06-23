@@ -7,7 +7,7 @@ export class ChatService {
         return await prisma.conversations.create({
             data: {
                 userId,
-                title: title || "New Conversation",
+                title: title || "New Chat",
                 mode,
             },
             include:{
@@ -35,7 +35,7 @@ export class ChatService {
             if (conversation) return conversation;
         }
 
-        return await this.createConversation(userId, "New Conversation", mode);
+        return await this.createConversation(userId, "New Chat", mode);
     }
 
 

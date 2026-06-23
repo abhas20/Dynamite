@@ -104,7 +104,13 @@ export function displayFileTree(
   return tree;
 }
 
-const aiService = new AIService();
+let globalAiService: AIService | null = null;
+export function getGlobalAIService() {
+  if (!globalAiService) {
+    globalAiService = new AIService();
+  }
+  return globalAiService;
+}
 
 // FILE OPERATIONS
 
@@ -198,13 +204,14 @@ export async function modifyApplicationFiles(
 // MAIN FUNCTION TO GENERATE APPLICATION STRUCTURE
 
 
-export async function routeUserIntent({userInput,history}: {userInput:string,history?: Array<{role:string,content:string}>}) {
+export async function routeUserIntent({userInput,history,apiKey}: {userInput:string,history?: Array<{role:string,content:string}>,apiKey?: string}) {
   console.log(chalk.blue('\nAnalyzing User Intent...'));
   const conversationHistory = history ? history.map(h=>`${h.role}: ${h.content}`).join('\n') : 'No prior conversation history.';
 
   try {
+    const service = apiKey ? new AIService(apiKey) : getGlobalAIService();
     const { output: intentOutput } = await generateText({
-      model: aiService.model,
+      model: service.model,
       output: Output.object({
         schema: IntentSchema,
         description: "Classified user intent based on the input",
@@ -254,7 +261,7 @@ export async function generateApplicationStructurePrompt({description,location=p
     try {
 
         const { output:application } = await generateText({
-            model: aiService.model,
+            model: getGlobalAIService().model,
             output:Output.object({
                 schema: ApplicationSchema,
                 description: "The structure of the application to be created based on the user's request",
@@ -315,7 +322,7 @@ export async function modifyApplicationStructurePrompt({description,location=pro
     try {
       
       const { output:modifications } = await generateText({
-          model: aiService.model,
+          model: getGlobalAIService().model,
           output:Output.object({
               schema: ModificationSchema,
               description: "The modifications to be made to the existing application based on the user's request",

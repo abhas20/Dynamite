@@ -7,14 +7,14 @@ import { ZodSchema } from "zod/v3";
 
 export class AIService {
     model: ReturnType<ReturnType<typeof createGoogleGenerativeAI>>;
-    constructor() {
-        if(!ai_config.google_api_key){
+    constructor(apiKey?: string) {
+        const key = apiKey || ai_config.google_api_key;
+        if(!key){
             console.log(chalk.red("Missing API key"));
             throw new Error("Missing API key");
         }
         const google = createGoogleGenerativeAI({
-            apiKey: ai_config.google_api_key,
-
+            apiKey: key,
         })
         
         this.model = google("gemini-2.5-flash")

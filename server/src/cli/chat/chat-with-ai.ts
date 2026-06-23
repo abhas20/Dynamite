@@ -183,8 +183,9 @@ async function chatLoop(conversation: {
         shouldAutoUpdateTitle = false;
         console.log(chalk.green(`✓ Conversation renamed to: ${newTitle}`));
       } else {
+        console.log(chalk.blue(`Current Title:${conversation.title}`));
         console.log(
-          chalk.yellow("⚠ Please provide a title. Usage: /title My Cool Chat")
+          chalk.yellow("⚠ Please provide a title to change. Usage: /title My Cool Chat")
         );
       }
       continue;
@@ -295,7 +296,7 @@ async function chatLoop(conversation: {
         clearSpinner.error("Failed to clear chat history.");
         console.log(chalk.red(`Error: ${(err as Error).message}`));
       }
-      continue;
+      process.exit(0);
     }
 
     // --- CHAT FLOW ---

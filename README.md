@@ -58,6 +58,7 @@
     ```
     - Server-side:
     ```bash
+    docker compose up -d # this will run the redis and postgres containers
     pnpm run dev
     ```
     

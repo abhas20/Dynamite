@@ -237,6 +237,7 @@ async function chatLoop(conversation: {
     if (inputStr.toLowerCase().startsWith("/title")) {
       const newTitle = inputStr.substring(7).trim();
       if (newTitle.length === 0) {
+        console.log(chalk.blue(`Current Title:${conversation.title}`));
         console.log(chalk.redBright.bold("⚠ Please provide a title. Usage: /title My Cool Chat"));
       } else {
         await makeAPIRequest(`/api/chat/${conversation.id}/title`, {
@@ -383,7 +384,7 @@ async function chatLoop(conversation: {
         clearSpinner.error("Failed to clear chat history.");
         console.log(chalk.red(`Error: ${(err as Error).message}`));
       }
-      continue;
+      process.exit(0);
     }
 
     // --- CHAT FLOW ---

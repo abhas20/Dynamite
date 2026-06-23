@@ -8,7 +8,17 @@ import { generateText, Output } from "ai";
 import z from "zod";
 
 const chatService = new ChatService();
-const aiService = new AIService();
+let defaultAIService: AIService | null = null;
+const getAIService = (req: AuthenticatedRequest) => {
+  const userApiKey = req.headers["x-gemini-api-key"] as string | undefined;
+  if (userApiKey) {
+    return new AIService(userApiKey);
+  }
+  if (!defaultAIService) {
+    defaultAIService = new AIService();
+  }
+  return defaultAIService;
+};
 
 const ApplicationSchema = z.object({
   folderName: z.string().describe("Name of the application folder"),
@@ -106,7 +116,8 @@ export const streamMessage = async (req: AuthenticatedRequest, res: Response) =>
 
     const tools = getEnabledTools(enabledTools);
 
-    const aiResponse = await aiService.sendMessage(
+    const reqAIService = getAIService(req);
+    const aiResponse = await reqAIService.sendMessage(
       aiMessages,
       (chunk: string) => {
         res.write(JSON.stringify({ type: "text", content: chunk }) + "\n");
@@ -138,7 +149,8 @@ export const streamMessage = async (req: AuthenticatedRequest, res: Response) =>
 export const routeAgent = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { userInput, history } = req.body;
-    const result = await routeUserIntent({ userInput, history });
+    const apiKey = req.headers["x-gemini-api-key"] as string | undefined;
+    const result = await routeUserIntent({ userInput, history, apiKey });
     res.json(result);
   } catch (error) {
     console.error("Error routing user intent:", error);
@@ -170,7 +182,7 @@ export const generateAgentApp = async (req: AuthenticatedRequest, res: Response)
     9. Ensure the application is production ready with proper structure and best practices.`;
 
     const { output: application } = await generateText({
-      model: aiService.model,
+      model: getAIService(req).model,
       output: Output.object({
         schema: ApplicationSchema,
         description: "The structure of the application to be created based on the user's request",
@@ -209,7 +221,7 @@ export const modifyAgentApp = async (req: AuthenticatedRequest, res: Response) =
     5. Ensure all modifications align with best practices and maintain application integrity.`;
 
     const { output: modifications } = await generateText({
-      model: aiService.model,
+      model: getAIService(req).model,
       output: Output.object({
         schema: ModificationSchema,
         description: "The modifications to be made to the existing application based on the user's request",

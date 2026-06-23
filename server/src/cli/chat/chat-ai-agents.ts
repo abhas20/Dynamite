@@ -72,9 +72,10 @@ async function agentLoop(conversation: {
       `AI Agent Mode Active 🕵️\n\n` +
       `Current Working Directory: ${chalk.yellow(currWorkingDir)}\n\n` +
       `Commands:\n` +
-      `• /cd <path>   : Change working directory\n` +
-      `• /exit        : Quit agent mode\n` +
-      `• /help        : Show this menu\n\n` +
+      `• /cd <path>         : Change working directory\n` +
+      `• /exit              : Quit agent mode\n` +
+      `• /help              : Show this menu\n` +
+      `• /title <new name>  : Rename the Chat\n\n` +
       `Examples:\n` +
       `"Create a Next.js app named 'my-blog'"`     
     ),
@@ -114,6 +115,25 @@ async function agentLoop(conversation: {
 
     if (inputStr.toLowerCase() === "/help") {
       console.log(getHelpBox());
+      continue;
+    }
+
+    if(inputStr.toLowerCase().startsWith("/title")) {
+      const newTitle = inputStr.substring(7).trim();
+      if (newTitle.length === 0) {
+        console.log(chalk.blue(`Current Title:${conversation.title}`));
+        console.log(
+          chalk.yellow("⚠ Please provide a title to change. Usage: /title My Cool Chat")
+        );
+      }
+      else {
+        await makeAPIRequest(`/api/chat/${conversation.id}/title`, {
+          method: "PUT",
+          body: JSON.stringify({ title: newTitle }),
+        });
+        conversation.title = newTitle;
+        console.log(chalk.green(`✓ Conversation renamed to: ${newTitle}`));
+      }
       continue;
     }
 
