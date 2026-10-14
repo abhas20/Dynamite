@@ -69,6 +69,7 @@
 
 ## 🤝 Contributing
 Contributions are welcome! Please feel free to submit a Pull Request.
+To know more see the [CONTRIBUTING](CONTRIBUTING.md) file.
 
 1. Fork the repository.
 2. Create a new branch:
